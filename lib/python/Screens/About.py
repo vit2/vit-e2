@@ -13,8 +13,18 @@ class About(Screen):
 	def __init__(self, session):
 		Screen.__init__(self, session)
 
-
-		AboutText = _("Hardware: ") + about.getHardwareTypeString() + "\n"
+		hwname = ""
+		if about.getHardwareTypeString() == "INI-7012" or about.getHardwareTypeString() == "INI-7000":
+		    hwname = "UNiBOX HD-3"
+		    AboutText = _("Hardware: ") + hwname + "\n"
+		elif about.getHardwareTypeString() == "INI-5000":
+		    hwname = "UNiBOX HD-2"    
+		elif about.getHardwareTypeString() == "INI-3000":
+		    hwname = "UNiBOX HD-1"
+		    AboutText = _("Hardware: ") + hwname + "\n"    
+		else:
+		    AboutText = _("Hardware: ") + about.getHardwareTypeString() + "\n"
+		    
 		AboutText += _("Image: ") + about.getImageTypeString() + "\n"
 		AboutText += _("Kernel version: ") + about.getKernelVersionString() + "\n"
 

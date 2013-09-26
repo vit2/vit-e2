@@ -33,15 +33,17 @@ def getKernelVersionString():
 
 def getHardwareTypeString():
 	try:
-		if os.path.isfile("/proc/stb/info/boxtype"):
+		if (os.path.isfile("/proc/stb/info/boxtype") and os.path.isfile("/proc/stb/info/version")): 
+			return open("/proc/stb/info/boxtype").read().strip().upper()
+		if os.path.isfile("/proc/stb/info/boxtype"):                            
 			return open("/proc/stb/info/boxtype").read().strip().upper() + " (" + open("/proc/stb/info/board_revision").read().strip() + "-" + open("/proc/stb/info/version").read().strip() + ")"
-		if os.path.isfile("/proc/stb/info/vumodel"):
+		if os.path.isfile("/proc/stb/info/vumodel"):                            
 			return "VU+" + open("/proc/stb/info/vumodel").read().strip().upper() + "(" + open("/proc/stb/info/version").read().strip().upper() + ")" 
-		if os.path.isfile("/proc/stb/info/model"):
-			return open("/proc/stb/info/model").read().strip().upper()
+		if os.path.isfile("/proc/stb/info/model"):                              
+			return open("/proc/stb/info/model").read().strip().upper()      
 	except:
 		pass
-	return _("unavailable")
+	return "Unavailable" 
 
 def getImageTypeString():
 	try:

@@ -146,6 +146,34 @@ int main(int argc, char **argv)
 	ePython python;
 	eMain main;
 
+	FILE *infile;
+	char line[100];
+	char cmd[10]= "reboot";
+
+	if((infile = fopen("/proc/stb/info/boxtype", "r")) != NULL)
+	{
+	    fgets(line, sizeof(line), infile);
+	    
+	    if(strcmp(line, "ini-3000\n") == 0) 
+	    {
+	      eDebug("UNiBox HD-1 or HD-1 Plus detected");
+	    }
+	    else if(strcmp(line, "ini-5000\n") == 0) 
+	    {
+	      eDebug("UNiBOX HD-2 detected");
+	    }
+	    else if((strcmp(line, "ini-7000\n") == 0) || (strcmp(line, "ini-7012\n") == 0))
+	    {
+	      eDebug("UNiBOX HD-3 detected");
+	    }
+	    else
+	    {
+	      eDebug("Wrong HW, this OpenPLi Image can be only run on UNiBOX Series");
+	      system(cmd);
+	    }
+	    fclose(infile);
+	}
+	
 #if 1
 	ePtr<gMainDC> my_dc;
 	gMainDC::getInstance(my_dc);

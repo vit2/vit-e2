@@ -348,11 +348,7 @@ class ChannelContextMenu(Screen):
 		self.close()
 
 	def renameEntry(self):
-		cur = self.csel.getCurrentSelection()
-		name = eServiceCenter.getInstance().info(cur).getName(cur) or ServiceReference(cur).getServiceName() or ""
-		name.replace('\xc2\x86', '').replace('\xc2\x87', '')
-		if name:
-			self.session.openWithCallback(self.csel.renameEntry, VirtualKeyBoard, title=_("Please enter new name:"), text=name)
+		self.csel.renameEntry()
 		self.close()
 
 	def toggleMoveMode(self):
@@ -526,7 +522,14 @@ class ChannelSelectionEdit:
 				name += '_'
 		return name
 
-	def renameEntry(self, name):
+	def renameEntry(self):
+		cur = self.getCurrentSelection()
+		name = eServiceCenter.getInstance().info(cur).getName(cur) or ServiceReference(cur).getServiceName() or ""
+		name.replace('\xc2\x86', '').replace('\xc2\x87', '')
+		if name:
+			self.session.openWithCallback(self.renameEntryCallback, VirtualKeyBoard, title=_("Please enter new name:"), text=name)
+
+	def renameEntryCallback(self, name):
 		if name:
 			current = self.servicelist.getCurrent()
 			if (current.flags & eServiceReference.mustDescent):
@@ -1059,7 +1062,7 @@ class ChannelSelectionBase(Screen):
 				if currentRoot is None or currentRoot != ref:
 					self.clearPath()
 					self.enterPath(ref)
-					self.setCurrentSelection(self.session.nav.getCurrentlyPlayingServiceOrGroup())
+					self.setCurrentSelectionAlternative(self.session.nav.getCurrentlyPlayingServiceOrGroup())
 
 	def showSatellites(self):
 		if not self.pathChangeDisabled:
@@ -1134,7 +1137,7 @@ class ChannelSelectionBase(Screen):
 							if len(op) >= 4:
 								hop = int(op[:-4],16)
 								refstr = '1:7:0:0:0:0:%s:0:0:0:(satellitePosition == %s) && %s ORDER BY name'%(op,hop,self.service_types[self.service_types.rfind(':')+1:])
-								self.setCurrentSelection(eServiceReference(refstr))
+								self.setCurrentSelectionAlternative(eServiceReference(refstr))
 
 	def showProviders(self):
 		if not self.pathChangeDisabled:
@@ -1154,7 +1157,7 @@ class ChannelSelectionBase(Screen):
 							if info:
 								provider = info.getInfoString(iServiceInformation.sProvider)
 								refstr = '1:7:0:0:0:0:0:0:0:0:(provider == \"%s\") && %s ORDER BY name:%s'%(provider,self.service_types[self.service_types.rfind(':')+1:],provider)
-								self.setCurrentSelection(eServiceReference(refstr))
+								self.setCurrentSelectionAlternative(eServiceReference(refstr))
 
 	def changeBouquet(self, direction):
 		if not self.pathChangeDisabled:
@@ -1184,10 +1187,16 @@ class ChannelSelectionBase(Screen):
 		return self.servicelist.atEnd()
 
 	def nextBouquet(self):
-		self.changeBouquet(+1)
+		if "reverseB" in config.usage.servicelist_cursor_behavior.value:
+			self.changeBouquet(-1)
+		else:
+			self.changeBouquet(+1)
 
 	def prevBouquet(self):
-		self.changeBouquet(-1)
+		if "reverseB" in config.usage.servicelist_cursor_behavior.value:
+			self.changeBouquet(+1)
+		else:
+			self.changeBouquet(-1)
 
 	def showFavourites(self):
 		if not self.pathChangeDisabled:
@@ -1227,6 +1236,16 @@ class ChannelSelectionBase(Screen):
 				self.setCurrentSelection(service)
 				if self.servicelist.getCurrent() != service:
 					self.servicelist.setCurrent(currentSelectedService)
+		elif number == 4:
+			self.renameEntry()
+		elif number == 5:
+			self.session.openWithCallback(self.removeCurrentServiceCallback, MessageBox, _("Are you sure to remove this entry?"))
+		elif number == 6:
+			self.toggleMoveMode()
+
+	def removeCurrentServiceCallback(self, confirmation):
+		if confirmation:
+			self.removeCurrentService()
 
 	def keyAsciiCode(self):
 		unichar = unichr(getPrevAsciiCode())
@@ -1243,6 +1262,15 @@ class ChannelSelectionBase(Screen):
 	def setCurrentSelection(self, service):
 		if service:
 			self.servicelist.setCurrent(service)
+
+	def setCurrentSelectionAlternative(self, ref):
+		if self.bouquet_mark_edit == EDIT_ALTERNATIVES and not (ref.flags & eServiceReference.isDirectory):
+			for markedService in self.servicelist.getMarked():
+				markedService = eServiceReference(markedService)
+				self.setCurrentSelection(markedService)
+				if markedService == self.getCurrentSelection():
+					return
+		self.setCurrentSelection(ref)
 
 	def getBouquetList(self):
 		bouquets = [ ]
@@ -1304,8 +1332,8 @@ class ChannelSelectionBase(Screen):
 					op = int(self.session.nav.getCurrentlyPlayingServiceOrGroup().toString().split(':')[6][:-4] or "0",16)
 					refstr = '1:7:0:0:0:0:0:0:0:0:(provider == \"%s\") && (satellitePosition == %s) && %s ORDER BY name:%s'%(provider,op,self.service_types[self.service_types.rfind(':')+1:],provider)
 					self.servicelist.setCurrent(eServiceReference(refstr))
-		elif not self.isBasePathEqual(self.bouquet_root):
-			self.setCurrentSelection(self.session.nav.getCurrentlyPlayingServiceOrGroup())
+		elif not self.isBasePathEqual(self.bouquet_root) or self.bouquet_mark_edit == EDIT_ALTERNATIVES:
+			self.setCurrentSelectionAlternative(self.session.nav.getCurrentlyPlayingServiceOrGroup())
 
 HISTORYSIZE = 20
 
@@ -1871,6 +1899,7 @@ class SimpleChannelSelection(ChannelSelectionBase):
 				"keyRadio": self.setModeRadio,
 				"keyTV": self.setModeTv,
 			})
+		self.bouquet_mark_edit = OFF
 		self.title = title
 		self.onLayoutFinish.append(self.layoutFinished)
 

@@ -24,6 +24,7 @@ class ServiceScan:
 
 				if errcode == 0:
 					self.state = self.Done
+					self.servicelist.listAll()
 				else:
 					self.state = self.Error
 					self.errorcode = errcode
@@ -56,7 +57,7 @@ class ServiceScan:
 							h = _("W")
 						else:
 							h = _("E")
-						if sat_name.find("%d.%d" % (orb_pos/10, orb_pos%10)) != -1:
+						if ("%d.%d" % (orb_pos/10, orb_pos%10)) in sat_name:
 							network = sat_name
 						else:
 							network = ("%s %d.%d %s") % (sat_name, orb_pos / 10, orb_pos % 10, h)

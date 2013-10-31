@@ -36,6 +36,7 @@ from Screens.RdsDisplay import RassInteractive
 from ServiceReference import ServiceReference
 from Tools.BoundFunction import boundFunction
 from Tools import Notifications
+from Tools.Alternatives import CompareWithAlternatives
 from os import remove
 profile("ChannelSelection.py after imports")
 
@@ -606,6 +607,10 @@ class ChannelSelectionEdit:
 					self.servicelist.addService(new_ref.ref, True)
 					self.servicelist.removeCurrent()
 					self.servicelist.moveUp()
+					if cur_service.ref.toString() == self.lastservice.value:
+						self.saveChannel(new_ref.ref)
+					if self.startServiceRef and cur_service.ref == self.startServiceRef:
+						self.startServiceRef = new_ref.ref
 				else:
 					print "get mutable list for new created alternatives failed"
 			else:
@@ -668,6 +673,10 @@ class ChannelSelectionEdit:
 			if edit_root:
 				if not edit_root.addService(first_in_alternative, cur_service.ref):
 					self.servicelist.addService(first_in_alternative, True)
+					if cur_service.ref.toString() == self.lastservice.value:
+						self.saveChannel(first_in_alternative)
+					if self.startServiceRef and cur_service.ref == self.startServiceRef:
+						self.startServiceRef = first_in_alternative
 				else:
 					print "couldn't add first alternative service to current root"
 			else:
@@ -687,7 +696,7 @@ class ChannelSelectionEdit:
 			pos = refstr.find('"')
 			if pos != -1:
 				filename = eEnv.resolve('${sysconfdir}/enigma2/') + refstr[:pos]
-		self.removeCurrentService()
+		self.removeCurrentService(bouquet=True)
 		try:
 			if filename is not None:
 				remove(filename)
@@ -762,7 +771,7 @@ class ChannelSelectionEdit:
 		else:
 			self.servicelist.addMarked(ref)
 
-	def removeCurrentService(self):
+	def removeCurrentService(self, bouquet=False):
 		ref = self.servicelist.getCurrent()
 		mutableList = self.getMutableList()
 		if ref.valid() and mutableList is not None:
@@ -770,6 +779,8 @@ class ChannelSelectionEdit:
 				mutableList.flushChanges() #FIXME dont flush on each single removed service
 				self.servicelist.removeCurrent()
 				self.servicelist.resetRoot()
+				if not bouquet and ref == self.session.nav.getCurrentlyPlayingServiceOrGroup():
+					self.channelSelected(doClose = False)
 
 	def addServiceToBouquet(self, dest, service=None):
 		mutableList = self.getMutableList(dest)
@@ -1533,13 +1544,13 @@ class ChannelSelection(ChannelSelectionBase, ChannelSelectionEdit, ChannelSelect
 		self.buildTitleString()
 
 	#called from infoBar and channelSelected
-	def zap(self, enable_pipzap = False, preview_zap = False, checkParentalControl = True, ref = None):
+	def zap(self, enable_pipzap=False, preview_zap=False, checkParentalControl=True, ref=None):
 		self.curRoot = self.startRoot
+		nref = ref or self.getCurrentSelection()
 		ref = self.session.nav.getCurrentlyPlayingServiceOrGroup()
-		nref = self.getCurrentSelection()
 		if enable_pipzap and self.dopipzap:
 			ref = self.session.pip.getCurrentService()
-			if not checkParentalControl or Components.ParentalControl.parentalControl.isServicePlayable(nref, boundFunction(self.zap, checkParentalControl = False)):
+			if not checkParentalControl or Components.ParentalControl.parentalControl.isServicePlayable(nref, boundFunction(self.zap, enable_pipzap=True, checkParentalControl=False)):
 				if ref is None or ref != nref:
 					if not self.session.pip.playService(nref):
 						# XXX: Make sure we set an invalid ref
@@ -1549,6 +1560,14 @@ class ChannelSelection(ChannelSelectionBase, ChannelSelectionEdit, ChannelSelect
 				self.setCurrentSelection(ref)
 		elif ref is None or ref != nref:
 			Screens.InfoBar.InfoBar.instance.checkTimeshiftRunning(boundFunction(self.zapCheckTimeshiftCallback, enable_pipzap, preview_zap, nref))
+		elif self.rootChanged and not preview_zap:
+			if ref is not None and ref == nref:
+				self.saveRoot()
+				config.servicelist.lastmode.save()
+				self.setCurrentSelection(nref)
+				if self.startServiceRef is None or nref != self.startServiceRef:
+					self.addToHistory(nref)
+				self.rootChanged = False
 
 	def zapCheckTimeshiftCallback(self, enable_pipzap, preview_zap, nref, answer):
 		if answer:
@@ -1745,10 +1764,11 @@ class ChannelSelection(ChannelSelectionBase, ChannelSelectionEdit, ChannelSelect
 	def correctChannelNumber(self):
 		selected_ref = self.getCurrentSelection()
 		current_ref = self.session.nav.getCurrentlyPlayingServiceOrGroup()
-		if selected_ref and selected_ref.getChannelNum() !=  (current_ref and current_ref.getChannelNum()):
+		if CompareWithAlternatives(selected_ref.toString(), current_ref.toString()):
 			self.session.nav.currentlyPlayingServiceOrGroup = selected_ref
-			from Components.Renderer.ChannelNumber import doRenumber
-			doRenumber()
+			if selected_ref.getChannelNum() != current_ref.getChannelNum():
+				from Components.Renderer.ChannelNumber import doRenumber
+				doRenumber()
 
 class RadioInfoBar(Screen):
 	def __init__(self, session):

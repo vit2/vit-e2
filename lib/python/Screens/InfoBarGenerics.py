@@ -579,7 +579,12 @@ class InfoBarChannelSelection:
 							self.servicelist.prevBouquet()
 					self.servicelist.moveUp()
 					cur = self.servicelist.getCurrentSelection()
-					if cur and (cur.toString() == prev or isPlayableForCur(cur)):
+					if cur:
+						if self.servicelist.dopipzap:
+							isPlayable = self.session.pip.isPlayableForPipService(cur)
+						else:
+							isPlayable = isPlayableForCur(cur)
+					if cur and (cur.toString() == prev or isPlayable):
 							break
 		else:
 			self.servicelist.moveUp()
@@ -596,7 +601,12 @@ class InfoBarChannelSelection:
 					else:
 						self.servicelist.moveDown()
 					cur = self.servicelist.getCurrentSelection()
-					if cur and (cur.toString() == prev or isPlayableForCur(cur)):
+					if cur:
+						if self.servicelist.dopipzap:
+							isPlayable = self.session.pip.isPlayableForPipService(cur)
+						else:
+							isPlayable = isPlayableForCur(cur)
+					if cur and (cur.toString() == prev or isPlayable):
 							break
 		else:
 			self.servicelist.moveDown()
@@ -1895,20 +1905,25 @@ class InfoBarPiP:
 		if not self.session.pipshown:
 			self.showPiP()
 		slist = self.servicelist
-		if slist:
+		if slist and self.session.pipshown:
 			slist.togglePipzap()
+			if slist.dopipzap:
+				currentServicePath = self.servicelist.getCurrentServicePath()
+				self.servicelist.setCurrentServicePath(self.session.pip.servicePath, doZap=False)
+				self.session.pip.servicePath = currentServicePath
 
 	def showPiP(self):
 		if self.session.pipshown:
 			slist = self.servicelist
 			if slist and slist.dopipzap:
-				slist.togglePipzap()
-			del self.session.pip
-			self.session.pipshown = False
+				self.togglePipzap()
+			if self.session.pipshown:
+				del self.session.pip
+				self.session.pipshown = False
 		else:
 			self.session.pip = self.session.instantiateDialog(PictureInPicture)
 			self.session.pip.show()
-			newservice = self.servicelist.servicelist.getCurrent()
+			newservice = self.session.nav.getCurrentlyPlayingServiceReference() or self.servicelist.servicelist.getCurrent()
 			if self.session.pip.playService(newservice):
 				self.session.pipshown = True
 				self.session.pip.servicePath = self.servicelist.getCurrentServicePath()
@@ -1921,9 +1936,9 @@ class InfoBarPiP:
 		pipref = self.session.pip.getCurrentService()
 		if swapservice and pipref and pipref.toString() != swapservice.toString():
 			currentServicePath = self.servicelist.getCurrentServicePath()
-			self.servicelist.setCurrentServicePath(self.session.pip.servicePath)	
+			self.servicelist.setCurrentServicePath(self.session.pip.servicePath, doZap=False)
 			self.session.pip.playService(swapservice)
-			self.session.nav.playService(pipref) # start subservice
+			self.session.nav.playService(pipref, checkParentalControl=False, adjust=False)
 			self.session.pip.servicePath = currentServicePath
 			if self.servicelist.dopipzap:
 				# This unfortunately won't work with subservices
@@ -2860,7 +2875,7 @@ class InfoBarServiceErrorPopupSupport:
 
 			if error:
 				self.closeNotificationInstantiateDialog()
-				if not self.dishDialog.dishState():
+				if hasattr(self, "dishDialog") and not self.dishDialog.dishState():
 					Notifications.AddPopup(text = error, type = MessageBox.TYPE_ERROR, timeout = 5, id = "ZapError")
 
 class InfoBarPowersaver:
